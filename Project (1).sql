@@ -76,6 +76,54 @@ INSERT INTO Registration (StudentID, EventID, Status, TimeStamp) VALUES
 (5, 3, 'Registered', '2025-10-25'),
 (5, 1, 'Registered', '2025-10-25');
 
+--Triggers
+GO
+CREATE TRIGGER trg_CheckCapacity
+ON Registration
+AFTER INSERT, UPDATE
+AS
+BEGIN
+
+    IF EXISTS (
+        SELECT * FROM Event e
+        JOIN (SELECT EventID, COUNT(*) AS RegisteredCount FROM Registration
+              WHERE Status = 'Registered'GROUP BY EventID ) r ON e.EventID = r.EventID WHERE r.RegisteredCount > e.Capacity
+    )
+    BEGIN
+        PRINT 'Event capacity exceeded.';
+        ROLLBACK TRANSACTION;
+    END;
+END;
+GO
+
+GO
+CREATE TRIGGER trg_DeleteRegistrations
+ON Event
+AFTER DELETE
+AS
+BEGIN
+    DELETE FROM Registration WHERE EventID IN (SELECT EventID FROM DELETED);
+    PRINT 'Related registrations were deleted because the event was removed.';
+END;
+GO
+
+GO
+CREATE TRIGGER trg_PreventNegativeCapacity
+ON Event
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF EXISTS (
+        SELECT * FROM INSERTED WHERE Capacity < 0
+    )
+    BEGIN
+        PRINT 'Capacity cannot be negative. The change was not saved.';
+        ROLLBACK TRANSACTION;
+    END
+END;
+GO
 
 /*
 NORMALIZATION
@@ -134,4 +182,4 @@ Event	        EventID	        OrganizerID	                               Each ev
 Registration	RegistrationID	StudentID → Student, EventID → Event	   Links students and events; ensures unique pairs
 
 All four tables are in Third Normal Form (3NF).
-They eliminate redundancy, maintain referential integrity, and support the required event registration relationships.
+They eliminate redundancy, maintain referential integrity, and support the required event registration relationships.*/
